@@ -24,12 +24,12 @@ The subcommands are:
 
 import importlib.metadata
 
-from genomatchgp import commands
+from sherpassa import commands
 
 from docopt import DocoptExit, docopt
 
 
-__version__ = importlib.metadata.version("genomatch-gillespie")
+__version__ = importlib.metadata.version("sherpa-ssa")
 
 
 def main():

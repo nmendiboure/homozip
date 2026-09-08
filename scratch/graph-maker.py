@@ -2,7 +2,7 @@
 Gillespie model — horizontal flow diagram (post-refactor v2).
 
 Renders the *current* Antimony model produced by
-`genomatchgp.modelmaker.generate_gillespie_model`, with:
+`sherpassa.modelmaker.generate_gillespie_model`, with:
 
   - explicit length-resolved D-loop states  (DHM_L, DHT_L)
   - continuous rate laws  k_off1, k_off2, p_dloop

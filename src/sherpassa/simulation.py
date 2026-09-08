@@ -5,7 +5,7 @@ import tellurium as te
 from mpi4py import MPI
 from numpy import random
 
-from genomatchgp import methods
+from sherpassa import methods
 
 
 COMM = MPI.COMM_WORLD

@@ -1,4 +1,4 @@
-"""Commands for the genomatchgp package."""
+"""Commands for the sherpassa package."""
 
 import os
 import shutil
@@ -9,9 +9,9 @@ import yaml
 from docopt import docopt
 from mpi4py import MPI
 
-from genomatchgp import methods
-from genomatchgp.modelmaker import export_sbml, generate_gillespie_model
-from genomatchgp.simulation import run
+from sherpassa import methods
+from sherpassa.modelmaker import export_sbml, generate_gillespie_model
+from sherpassa.simulation import run
 
 
 COMM = MPI.COMM_WORLD

@@ -3,7 +3,7 @@ requires = ["setuptools>=74.0.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "genomatch-gillespie"
+name = "sherpa-ssa"
 version = "1.0.0rc0"
 description = "Stochastic and comprehensive framework to study homology search in DNA repair using Gillespie algorithm"
 dynamic = ["dependencies"]
@@ -28,13 +28,13 @@ classifiers = [
 requires-python = "~=3.12"
 
 [project.urls]
-Homepage = "https://github.com/nmendiboure/genomatch-gillespie"
+Homepage = "https://github.com/nmendiboure/sherpa-ssa"
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [project.scripts]
-genomatchgp = "genomatchgp.main:main"
+sherpa-ssa = "sherpassa.main:main"
 
 [tool.setuptools.dynamic]
 dependencies = {file = "requirements.txt"}
