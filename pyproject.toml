@@ -1,11 +1,11 @@
 [build-system]
-requires = ["setuptools>=74.0.0", "wheel"]
+requires = ["setuptools>=74.0.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "homozip"
 description = "The mismatch-limited zipper: a minimal stochastic model of homology search"
-dynamic = ["version", "dependencies"]
+dynamic = ["version"]
 readme = "README.md"
 license = {text = "GPLv3"}
 authors = [
@@ -21,6 +21,13 @@ classifiers = [
     "Operating System :: MacOS"
 ]
 requires-python = "~=3.12"
+dependencies = [
+    "matplotlib~=3.9.2",
+    "numpy>=1.26.0,<2.0",
+    "pyyaml~=6.0.2",
+    "scipy==1.14.1",
+    "tellurium==2.2.10",
+]
 
 [project.urls]
 Homepage = "https://github.com/nmendiboure/homozip"
@@ -33,8 +40,10 @@ where = ["src"]
 
 [tool.setuptools.dynamic]
 version = {attr = "homozip.__version__"}
-dependencies = {file = "requirements.txt"}
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]
+
+[tool.pylint.format]
+max-line-length = 120

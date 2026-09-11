@@ -42,7 +42,7 @@ def panel_divergence(ax, prm: Params, n_rep: int, seed: int) -> None:
     deltas = np.linspace(0.0, 0.20, 80)
 
     for m, color in ((0, BLUE), (1, ORANGE), (2, RED)):
-        curve = [theory.commit_vs_divergence(prm.with_(max_mismatches=m), d)
+        curve = [theory.commit_probability(prm.with_(max_mismatches=m, p_hom=1.0 - d))
                  for d in deltas]
         label = rf"theory, $m = {m}$"
         if m == 0:

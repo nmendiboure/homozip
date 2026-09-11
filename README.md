@@ -158,8 +158,9 @@ derivations and a parameter-by-parameter map onto SHERPA.
 
 ```bash
 conda env create -f environment.yml && conda activate homozip
-pip install -e .
 ```
+
+or `pip install -e .` in any Python 3.12 environment.
 
 ## Use
 

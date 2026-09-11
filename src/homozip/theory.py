@@ -19,7 +19,6 @@ Notation: k = k_seed, Lc = l_commit, n = Lc - k, m = max_mismatches.
 from __future__ import annotations
 
 import math
-from typing import Iterable
 
 import numpy as np
 from scipy.linalg import expm
@@ -89,24 +88,10 @@ def kinetic_yield(prm: Params) -> float:
     return commit_probability(prm.with_(p_hom=1.0), "H")
 
 
-def discrimination(prm: Params, p_a, p_b) -> float:
+def discrimination(prm: Params, p_a: float, p_b: float) -> float:
     """Odds of committing on donor A rather than donor B."""
-    return (commit_probability(prm.with_(p_hom=_as_p(p_a)))
-            / commit_probability(prm.with_(p_hom=_as_p(p_b))))
-
-
-def _as_p(p):
-    return float(p) if isinstance(p, (int, float)) else tuple(float(v) for v in p)
-
-
-def meps_slope(prm: Params) -> int:
-    """Slope of log(yield) against divergence, for m = 0: the number of
-    nucleotides still to check. This is the measurable MEPS."""
-    return prm.n_steps
-
-
-def commit_vs_divergence(prm: Params, delta: float) -> float:
-    return commit_probability(prm.with_(p_hom=1.0 - delta))
+    return (commit_probability(prm.with_(p_hom=p_a))
+            / commit_probability(prm.with_(p_hom=p_b)))
 
 
 def false_commitment_odds(prm: Params) -> float:
@@ -133,28 +118,6 @@ def min_commitment_steps(prm: Params, epsilon: float = 1e-3) -> float:
     if not (isinstance(prm.p_hom, float) and isinstance(prm.p_het, float)):
         raise ValueError("this bound needs scalar p_hom and p_het")
     return math.log((1.0 - prm.f) / (prm.f * epsilon)) / math.log(prm.p_hom / prm.p_het)
-
-
-def min_commitment_length(prm: Params, epsilon: float = 1e-3, l_max: int = 200) -> int:
-    """The same bound by scanning L_commit, valid for any m and any profile."""
-    for lc in range(prm.k_seed + 1, l_max + 1):
-        if not _profile_fits(prm, lc):
-            continue
-        if false_commitment_odds(prm.with_(l_commit=lc)) <= epsilon:
-            return lc
-    raise ValueError(f"no L_commit <= {l_max} reaches epsilon = {epsilon}")
-
-
-def _profile_fits(prm: Params, lc: int) -> bool:
-    return all(isinstance(p, float) or len(p) == lc - prm.k_seed
-               for p in (prm.p_hom, prm.p_het))
-
-
-def fidelity_table(prm: Params, epsilons: Iterable[float] = (1e-2, 1e-3, 1e-4)):
-    return [{"epsilon": eps,
-             "n_min": min_commitment_steps(prm, eps),
-             "L_commit_min": prm.k_seed + math.ceil(min_commitment_steps(prm, eps))}
-            for eps in epsilons]
 
 
 # ---- Occupancy and the commit rate ----
@@ -269,7 +232,8 @@ def optimal_koff0_numeric(prm: Params, decades=(-5.0, 1.0), n_points=2000):
 def generator(net: Network) -> tuple[np.ndarray, dict[str, int]]:
     """Generator matrix and the species index, in declaration order."""
     idx = {s: i for i, s in enumerate(net.species)}
-    q = np.zeros((net.n_species, net.n_species))
+    n = len(net.species)
+    q = np.zeros((n, n))
     for r in net.reactions:
         i, j = idx[r.src], idx[r.dst]
         q[i, j] += r.rate
@@ -296,8 +260,8 @@ def first_passage(prm: Params, t, start: str | None = None) -> dict[str, np.ndar
     t = np.asarray(t, dtype=float)
     step = expm(q * _check_uniform(t))
 
-    v = np.zeros(net.n_species)
-    v[idx[start or net.free]] = 1.0
+    v = np.zeros(len(net.species))
+    v[idx[start or "S"]] = 1.0
     q_rh = q[:, idx["RH"]]
 
     cdf_h = np.empty(t.size)

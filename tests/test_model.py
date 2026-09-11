@@ -11,11 +11,11 @@ def test_species_and_reaction_counts(m):
     net = build_network(prm)
     n = prm.n_steps
     # S, RH, RX, then per track: (m+1) zipping ladders and one blocked ladder.
-    assert net.n_species == 3 + 2 * n * (m + 2)
+    assert len(net.species) == 3 + 2 * n * (m + 2)
     # Two nucleations, then per track and per ladder: zip, mismatch, fall off,
     # plus one fall-off per blocked state.
-    assert net.n_reactions == 2 + 2 * n * (3 * m + 4)
-    assert len(set(net.species)) == net.n_species
+    assert len(net.reactions) == 2 + 2 * n * (3 * m + 4)
+    assert len(set(net.species)) == len(net.species)
     assert net.species[0] == "S" and net.species[-2:] == ["RH", "RX"]
 
 
@@ -43,7 +43,7 @@ def test_antimony_loads_and_exports_sbml():
     src = to_antimony(net, prm)
     rr = te.loada(src)
     assert set(rr.getFloatingSpeciesIds()) == set(net.species)
-    assert len(rr.getReactionIds()) == net.n_reactions
+    assert len(rr.getReactionIds()) == len(net.reactions)
     assert rr["S"] == prm.n_sites
     assert "<sbml" in export_sbml(src)
 

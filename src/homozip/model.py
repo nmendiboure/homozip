@@ -26,13 +26,11 @@ from __future__ import annotations
 
 import hashlib
 import json
-from dataclasses import dataclass, field, replace, asdict
+import math
+from dataclasses import dataclass, replace, asdict
 
 MODEL_NAME = "homology_zipper"
-
-# The random-sequence null for p_het. The measured value is higher (0.271
-# on S288c) because the genome is AT-rich; see genome.py.
-P_HET_RANDOM_SEQUENCE = 0.25
+SIMULATION_KEYS = ("t_end", "n_points", "n_cells", "seed")
 
 
 # =====================================================================
@@ -81,14 +79,16 @@ class Params:
         if self.lam is not None and self.lam <= 0.0:
             raise ValueError("lam must be > 0, or None for a flat koff")
         for name in ("p_hom", "p_het"):
+            # A scalar becomes a float and a profile a tuple, so that the
+            # rest of the code can rely on isinstance(p, float).
             p = getattr(self, name)
-            values = (p,) if isinstance(p, float) else p
-            if len(values) not in (1, self.n_steps):
+            p = float(p) if isinstance(p, (int, float)) else tuple(float(v) for v in p)
+            object.__setattr__(self, name, p)
+            if isinstance(p, tuple) and len(p) != self.n_steps:
                 raise ValueError(
                     f"{name} must be a scalar or a profile of {self.n_steps} values, "
-                    f"one per step L = {self.k_seed}..{self.l_commit - 1}; "
-                    f"got {len(values)}")
-            if any(not 0.0 <= v <= 1.0 for v in values):
+                    f"one per step L = {self.k_seed}..{self.l_commit - 1}; got {len(p)}")
+            if any(not 0.0 <= v <= 1.0 for v in ((p,) if isinstance(p, float) else p)):
                 raise ValueError(f"{name} must lie in [0, 1]")
 
     # ---- Derived ----
@@ -103,11 +103,6 @@ class Params:
         """The zipping states, L = k_seed .. l_commit - 1."""
         return range(self.k_seed, self.l_commit)
 
-    @property
-    def delta(self) -> float | None:
-        """Donor divergence, when p_hom is a scalar."""
-        return 1.0 - self.p_hom if isinstance(self.p_hom, float) else None
-
     def p(self, track: str, l: int) -> float:
         """Match probability of the next nucleotide, on track H or X."""
         p = self.p_hom if track == "H" else self.p_het
@@ -117,7 +112,7 @@ class Params:
         """Fall-off rate of a joint holding L paired nucleotides."""
         if self.lam is None:
             return self.koff0
-        return self.koff0 * 2.718281828459045 ** (-(l - self.k_seed) / self.lam)
+        return self.koff0 * math.exp(-(l - self.k_seed) / self.lam)
 
     def with_(self, **changes) -> "Params":
         return replace(self, **changes)
@@ -126,40 +121,25 @@ class Params:
 
     @classmethod
     def from_config(cls, cfg: dict) -> "Params":
-        """Build from the params.yaml keys, which use a few aliases."""
-        if "p_hom" in cfg and "delta" in cfg:
-            raise ValueError("give either 'delta' or 'p_hom', not both")
+        """Build from the params.yaml keys, which allow a few aliases."""
         alias = {"N": "n_sites", "L_commit": "l_commit", "seed_zero": "seed"}
-        kwargs = {}
-        for key, value in cfg.items():
-            if key == "delta":
-                kwargs["p_hom"] = 1.0 - float(value)
-            elif key in ("p_hom", "p_het"):
-                kwargs[key] = (float(value) if isinstance(value, (int, float))
-                               else tuple(float(v) for v in value))
-            elif key == "lam":
-                kwargs["lam"] = None if value in (None, 0, 0.0) else float(value)
-            else:
-                kwargs[alias.get(key, key)] = value
+        kwargs = {alias.get(key, key): value for key, value in cfg.items()}
+        if "delta" in kwargs:
+            if "p_hom" in kwargs:
+                raise ValueError("give either 'delta' or 'p_hom', not both")
+            kwargs["p_hom"] = 1.0 - float(kwargs.pop("delta"))
+        if kwargs.get("lam") == 0:
+            kwargs["lam"] = None
         unknown = set(kwargs) - set(cls.__dataclass_fields__)
         if unknown:
             raise ValueError(f"unknown parameter(s): {sorted(unknown)}")
         return cls(**kwargs)
 
-    def to_config(self) -> dict:
-        cfg = asdict(self)
-        for key in ("p_hom", "p_het"):
-            if isinstance(cfg[key], tuple):
-                cfg[key] = list(cfg[key])
-        return cfg
-
     def uid(self) -> int:
         """Identifier of the model. Simulation settings do not enter it."""
-        cfg = self.to_config()
-        for key in ("t_end", "n_points", "n_cells", "seed"):
-            cfg.pop(key)
-        canon = json.dumps(cfg, sort_keys=True)
-        return int(hashlib.sha256(canon.encode()).hexdigest(), 16) % 2**32
+        cfg = {k: v for k, v in asdict(self).items() if k not in SIMULATION_KEYS}
+        digest = hashlib.sha256(json.dumps(cfg, sort_keys=True).encode()).hexdigest()
+        return int(digest, 16) % 2**32
 
 
 # =====================================================================
@@ -176,25 +156,12 @@ class Reaction:
 
 @dataclass
 class Network:
-    name: str
+    """The single-site reaction list. Species are in declaration order,
+    which is also the column order of the generator matrix."""
     params: list[tuple[str, float]]
-    species: list[str]          # declaration order, which is also column order
+    species: list[str]
     reactions: list[Reaction]
-    free: str = "S"
     absorbing: tuple[str, ...] = ("RH", "RX")
-    seed_state: dict[str, str] = field(default_factory=dict)
-
-    @property
-    def transient(self) -> list[str]:
-        return [s for s in self.species if s not in self.absorbing]
-
-    @property
-    def n_species(self) -> int:
-        return len(self.species)
-
-    @property
-    def n_reactions(self) -> int:
-        return len(self.reactions)
 
 
 def state_name(track: str, l: int, j: int = 0) -> str:
@@ -225,9 +192,8 @@ def _koff_expr(prm: Params, l: int) -> str:
 
 
 def build_network(prm: Params) -> Network:
-    """The single-site reaction list. Both the Antimony source and the
-    generator matrix of theory.py are built from it, so they cannot drift
-    apart."""
+    """Both the Antimony source and the generator matrix of theory.py are
+    built from this list, so they cannot drift apart."""
     m = prm.max_mismatches
     lengths = list(prm.lengths)
     tracks = (("H", "RH"), ("X", "RX"))
@@ -281,11 +247,7 @@ def build_network(prm: Params) -> Network:
             rx.append(Reaction(blocked_name(track, l), "S", _koff_expr(prm, l),
                                prm.koff(l)))
 
-    return Network(
-        name=MODEL_NAME, params=params, species=species, reactions=rx,
-        seed_state={"H": state_name("H", prm.k_seed),
-                    "X": state_name("X", prm.k_seed)},
-    )
+    return Network(params=params, species=species, reactions=rx)
 
 
 # =====================================================================
@@ -294,10 +256,10 @@ def build_network(prm: Params) -> Network:
 
 def to_antimony(net: Network, prm: Params) -> str:
     out: list[str] = []
-    out.append(f"// {net.name} (homozip): the mismatch-limited zipper\n")
+    out.append(f"// {MODEL_NAME} (homozip): the mismatch-limited zipper\n")
     out.append(f"// uid {prm.uid()}  k_seed {prm.k_seed}  L_commit {prm.l_commit}"
                f"  max_mismatches {prm.max_mismatches}\n")
-    out.append(f"model {net.name}()\n")
+    out.append(f"model {MODEL_NAME}()\n")
     out.append("    compartment cell = 1;\n\n")
 
     out.append("    // ---- Parameters ----\n")

@@ -14,16 +14,15 @@ from __future__ import annotations
 import numpy as np
 import tellurium as te
 
-from .model import Params, build_network, to_antimony
+from .model import Params, build_network, to_antimony, state_name
 
 
 def load(prm: Params):
     """A roadrunner instance with the Gillespie integrator armed."""
-    net = build_network(prm)
-    rr = te.loada(to_antimony(net, prm))
+    rr = te.loada(to_antimony(build_network(prm), prm))
     rr.integrator = "gillespie"
     rr.integrator.variable_step_size = False
-    return rr, net
+    return rr
 
 
 def isolated_seed_commit_fraction(prm: Params, n_rep: int, seed: int | None = None,
@@ -33,9 +32,9 @@ def isolated_seed_commit_fraction(prm: Params, n_rep: int, seed: int | None = No
     Each replicate starts with one joint at the seed length, no free site
     and kon = 0, and runs long enough for the slowest blocked joint to have
     fallen off."""
-    rr, net = load(prm)
+    rr = load(prm)
     seed = prm.seed if seed is None else seed
-    start = net.seed_state[track]
+    start = state_name(track, prm.k_seed)
     target = "RH" if track == "H" else "RX"
     rr.timeCourseSelections = ["time", target]
     t_end = 40.0 / min(prm.koff(l) for l in prm.lengths)
@@ -66,7 +65,7 @@ def run_ensemble(prm: Params, n_cells: int | None = None, seed: int | None = Non
     t_end = prm.t_end if t_end is None else t_end
     n_points = prm.n_points if n_points is None else n_points
 
-    rr, _ = load(prm)
+    rr = load(prm)
     rr.timeCourseSelections = ["time", "S", "RH", "RX"]
     times = np.full(n_cells, np.nan)
     acc = np.zeros((n_points, 3))

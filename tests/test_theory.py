@@ -55,11 +55,12 @@ def test_search_time_split_adds_up_to_the_commit_rate():
     assert split["tau_diff"] > split["tau_off"] > split["tau_target"] > 0
 
 
-def test_fidelity_bound_agrees_with_a_scan():
+def test_fidelity_bound_is_the_shortest_test_that_meets_epsilon():
     prm = Params()
     for eps in (1e-2, 1e-3, 1e-4):
-        n_min = theory.min_commitment_steps(prm, eps)
-        assert theory.min_commitment_length(prm, eps) == prm.k_seed + math.ceil(n_min)
+        lc = prm.k_seed + math.ceil(theory.min_commitment_steps(prm, eps))
+        assert theory.false_commitment_odds(prm.with_(l_commit=lc)) <= eps
+        assert theory.false_commitment_odds(prm.with_(l_commit=lc - 1)) > eps
     assert 8 < theory.min_commitment_steps(prm, 1e-2) < 13
     assert theory.min_commitment_steps(prm, 1e-4) > theory.min_commitment_steps(prm, 1e-2)
 

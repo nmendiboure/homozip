@@ -5,7 +5,6 @@ from __future__ import annotations
 import argparse
 import math
 import os
-import sys
 
 import numpy as np
 import yaml
@@ -42,8 +41,8 @@ def cmd_build(args) -> None:
         fh.write(export_sbml(src))
 
     print(f"uid        {prm.uid()}")
-    print(f"species    {net.n_species}")
-    print(f"reactions  {net.n_reactions}")
+    print(f"species    {len(net.species)}")
+    print(f"reactions  {len(net.reactions)}")
     print(f"antimony   {txt}")
     print(f"sbml       {xml}")
 
@@ -55,12 +54,13 @@ def cmd_theory(args) -> None:
     for key, value in summary.items():
         print(f"{key:<{width}}  {_fmt(value)}")
 
-    scalar_p = isinstance(prm.p_hom, float) and isinstance(prm.p_het, float)
-    if prm.max_mismatches == 0 and scalar_p:
+    if prm.max_mismatches == 0 and isinstance(prm.p_hom, float) \
+            and isinstance(prm.p_het, float):
         print("\nfidelity bound:  n >= ln((1-f)/(f eps)) / ln(p_hom/p_het)")
-        for row in theory.fidelity_table(prm):
-            print(f"  eps = {row['epsilon']:<7g} n_min = {row['n_min']:5.1f}   "
-                  f"L_commit >= {row['L_commit_min']}")
+        for eps in (1e-2, 1e-3, 1e-4):
+            n_min = theory.min_commitment_steps(prm, eps)
+            print(f"  eps = {eps:<7g} n_min = {n_min:5.1f}   "
+                  f"L_commit >= {prm.k_seed + math.ceil(n_min)}")
 
     if prm.lam is None:
         # What SHERPA's per-triplet koff1_adj = 0.7 would be worth here.
@@ -154,6 +154,16 @@ def cmd_figure(args) -> None:
 # Parser
 # =====================================================================
 
+def _model_command(sub, name: str, func, help: str, output: bool = True):
+    """A subcommand that reads params.yaml and, usually, writes under -o."""
+    p = sub.add_parser(name, help=help)
+    p.add_argument("params", nargs="?", default="params.yaml")
+    if output:
+        p.add_argument("-o", "--output", default="output")
+    p.set_defaults(func=func)
+    return p
+
+
 def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(
         prog="homozip",
@@ -162,22 +172,22 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--version", action="version", version=f"homozip {__version__}")
     sub = ap.add_subparsers(dest="command", required=True)
 
-    p = sub.add_parser("build", help="write the Antimony and SBML model")
-    p.add_argument("params", nargs="?", default="params.yaml")
-    p.add_argument("-o", "--output", default="output")
-    p.set_defaults(func=cmd_build)
+    _model_command(sub, "build", cmd_build, "write the Antimony and SBML model")
 
-    p = sub.add_parser("theory", help="print the closed-form summary")
-    p.add_argument("params", nargs="?", default="params.yaml")
+    p = _model_command(sub, "theory", cmd_theory, "print the closed-form summary",
+                       output=False)
     p.add_argument("--no-exact", action="store_true",
                    help="skip the exact mean search time")
-    p.set_defaults(func=cmd_theory)
 
-    p = sub.add_parser("run", help="Gillespie ensemble against the exact solution")
-    p.add_argument("params", nargs="?", default="params.yaml")
-    p.add_argument("-o", "--output", default="output")
+    p = _model_command(sub, "run", cmd_run,
+                       "Gillespie ensemble against the exact solution")
     p.add_argument("-c", "--cells", type=int, default=None)
-    p.set_defaults(func=cmd_run)
+
+    p = _model_command(sub, "figure", cmd_figure, "the figures")
+    p.add_argument("--quick", action="store_true", help="small ensembles")
+    p.add_argument("--genome-spectrum", default="resources/spectrum/genome.json")
+    p.add_argument("--background-spectrum",
+                   default="resources/spectrum/background.json")
 
     p = sub.add_parser("spectrum", help="measure the match-length spectrum")
     p.add_argument("--genome", required=True, help="FASTA")
@@ -190,15 +200,6 @@ def build_parser() -> argparse.ArgumentParser:
                    help="blank a genomic interval before indexing (repeatable)")
     p.add_argument("--output", default="output/spectrum.json")
     p.set_defaults(func=cmd_spectrum)
-
-    p = sub.add_parser("figure", help="the figures")
-    p.add_argument("params", nargs="?", default="params.yaml")
-    p.add_argument("-o", "--output", default="output")
-    p.add_argument("--quick", action="store_true", help="small ensembles")
-    p.add_argument("--genome-spectrum", default="resources/spectrum/genome.json")
-    p.add_argument("--background-spectrum",
-                   default="resources/spectrum/background.json")
-    p.set_defaults(func=cmd_figure)
     return ap
 
 
@@ -208,4 +209,4 @@ def main(argv=None) -> None:
 
 
 if __name__ == "__main__":
-    main(sys.argv[1:])
+    main()
