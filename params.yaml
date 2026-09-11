@@ -1,79 +1,28 @@
-# =====================================================================
-# homozip: the mismatch-limited zipper
-# =====================================================================
-# Minutes and nucleotides throughout. The README has the same list as a
-# table, with the provenance of every number.
-#
-# Rescaling time by kext leaves two kinetic numbers to fit, kon / kext and
-# koff0 / kext. Everything else is measured, structural, or swept.
-
+# homozip parameters. Minutes and nucleotides throughout.
+# The README has the same list as a table, with the provenance of every number.
 
 # ---- Structure of the search ----------------------------------------
-N: 200                  # nucleation sites carried by the filament
+N: 200                  # nucleation sites on the filament
+f: 0.00157              # share of seeds landing on the donor. Measured on S288c
+k_seed: 8               # length of the initial exact match, nt
+L_commit: 30            # length at which the joint is committed, nt
+max_mismatches: 0       # mismatches stepped over before blocking. 0 = every mismatch blocks
 
-f: 0.00157              # share of seeds landing on the homologous donor.
-                        # MEASURED, not fitted: the plateau of the match-length
-                        # survival curve of the LY filament against S288c,
-                        # 2040 donor pairs out of 1,295,385. See
-                        # `homozip spectrum` and resources/spectrum/.
+# ---- Rates, per minute ------------------------------------------------
+kon:   0.006            # a free site catches a seed. Fitted, so kon * N = 1.2 /min
+koff0: 0.7              # a joint falls off the DNA. Fitted
+kext:  300              # the zipper advances by one nucleotide. Fixed, sets the time unit
+lam:   null             # koff(L) = koff0 * exp(-(L - k_seed) / lam), nt. null is a flat koff.
+                        # Set 8.41 to switch the ladder on; it is worth 3.2 %
 
-k_seed: 8               # length of the initial exact match, nt. The shortest
-                        # microhomology a nucleation can hold on to.
-
-L_commit: 30            # length at which the joint is committed, nt. A single
-                        # threshold stands in for the whole post-synaptic
-                        # cascade. Only L_commit - k_seed can be identified,
-                        # and that difference is the slope of a divergence
-                        # series.
-
-max_mismatches: 0       # mismatches the zipper steps over before it blocks.
-                        # 0 means every mismatch blocks, and the commit
-                        # probability is p^n Q. With m > 0 it becomes
-                        # Q Prob[Binomial(n, delta) <= m], which is flat at low
-                        # divergence; the width of that shoulder measures m.
-
-
-# ---- Rates, per minute (kext per nucleotide per minute) --------------
-kon:   0.006            # a free site catches a seed. FITTED.
-                        # kon * N = 1.2 /min is the nucleation rate of the
-                        # whole filament.
-
-koff0: 0.7              # a joint falls off the DNA, at the seed length.
-                        # FITTED. See lam below for the length dependence.
-
-kext:  300              # the zipper advances by one nucleotide. FIXED, not
-                        # fitted: doubling it moves the commit rate by 2.6 %
-                        # and making it infinite by 5.3 %, because zipping is
-                        # already instantaneous next to koff0. It sets the time
-                        # unit; only koff0/kext and kon/kext have content.
-
-lam:   null             # koff(L) = koff0 * exp(-(L - k_seed) / lam), in nt, or
-                        # a flat koff if null. Flat is the settled form: the
-                        # ladder was implemented and measured, and it changes
-                        # the commit rate by 3.2 %. Set lam: 8.41 for a joint
-                        # stabilised by a factor 0.7 per helical triplet,
-                        # since 3 / ln(1/0.7) = 8.41 nt.
-
-
-# ---- Sequence: one number per track ---------------------------------
-delta: 0.0              # divergence of the homologous donor, so p_hom = 1 - delta.
-                        # This is the variable of the experiment. 0 is isogenic,
-                        # and 0.01 to 0.10 covers the classical homeologous
-                        # recombination series. Give p_hom directly instead if
-                        # that is more convenient, but not both.
-
-p_het: 0.271            # probability that the next nucleotide pairs in the
-                        # genome background. MEASURED, flat over L = 8..14 with
-                        # the donor masked (0.269 to 0.284, mean 0.274; 0.271 is
-                        # the value at the seed length). Not 1/4: the yeast
-                        # genome is AT-rich, and the sum of squared base
-                        # frequencies at 38 % GC is 0.264. A measured profile
-                        # [p(8), p(9), ...] is accepted here as well, which is
-                        # how the repeat tail above L = 15 can be fed in.
-
+# ---- Sequence ---------------------------------------------------------
+delta: 0.0              # divergence of the donor, so p_hom = 1 - delta. This is the
+                        # variable of the experiment. Give p_hom directly instead, not both
+p_het: 0.271            # chance the next nucleotide pairs in the background. Measured,
+                        # flat over L = 8..14. A profile [p(8), p(9), ...] is accepted too
 
 # ---- Simulation -------------------------------------------------------
-t_end:     480          # minutes, i.e. 8 hours
-n_points:  481
-n_cells:   2000
-seed:      1999         # cell i uses seed + i
+t_end:    480           # minutes
+n_points: 481
+n_cells:  2000
+seed:     1999          # cell i uses seed + i
