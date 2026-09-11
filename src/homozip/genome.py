@@ -51,7 +51,7 @@ def read_fasta(path: str) -> dict[str, np.ndarray]:
 
 def read_filament(path: str) -> np.ndarray:
     """The ssDNA sequence of a filament YAML, written either as a single
-    `name: sequence` entry or in SHERPA's `filament: {sequence: ...}` form."""
+    `name: sequence` entry or in a nested `filament: {sequence: ...}` form."""
     with open(path, "r", encoding="utf-8") as fh:
         data = yaml.safe_load(fh)
     if isinstance(data, dict) and "filament" in data:

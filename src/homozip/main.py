@@ -68,10 +68,11 @@ def cmd_theory(args) -> None:
                   f"L_commit >= {prm.k_seed + math.ceil(n_min)}")
 
     if prm.lam is None:
-        # What SHERPA's per-triplet koff1_adj = 0.7 would be worth here.
-        lam_sherpa = 3.0 / math.log(1.0 / 0.7)
-        gain = theory.commit_rate(prm.with_(lam=lam_sherpa)) / theory.commit_rate(prm)
-        print(f"\nkoff(L) ladder, lam = {lam_sherpa:.2f} nt: commit rate x {gain:.4f} "
+        # What a stabilisation ladder would be worth here, taking koff down by
+        # a factor 0.7 per triplet as a plausible per-turn stabilisation.
+        lam_ladder = 3.0 / math.log(1.0 / 0.7)
+        gain = theory.commit_rate(prm.with_(lam=lam_ladder)) / theory.commit_rate(prm)
+        print(f"\nkoff(L) ladder, lam = {lam_ladder:.2f} nt: commit rate x {gain:.4f} "
               f"({100 * (gain - 1):+.1f} %)")
 
 
@@ -148,11 +149,13 @@ def cmd_figure(args) -> None:
     for key, value in theory.summarize(prm, exact=False).items():
         print(f"  {key:<22} {_fmt(value)}")
 
-    print(f"figure   {figures.figure_model(prm, fig_dir, quick=args.quick)}")
+    paths = figures.figure_model(prm, fig_dir, quick=args.quick)
     if os.path.isfile(args.genome_spectrum) and os.path.isfile(args.background_spectrum):
-        out = figures.figure_spectrum(args.genome_spectrum, args.background_spectrum,
-                                      fig_dir, prm.l_commit)
-        print(f"figure   {out}")
+        paths += figures.figure_spectrum(args.genome_spectrum,
+                                         args.background_spectrum,
+                                         fig_dir, prm.l_commit)
+    for path in paths:
+        print(f"figure   {path}")
 
 
 # =====================================================================
@@ -197,7 +200,7 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("spectrum", help="measure the match-length spectrum")
     p.add_argument("--genome", default="resources/S288c-Lys2.fa", help="FASTA")
     p.add_argument("--filament", default="resources/LY.yaml",
-                   help="filament YAML, `name: sequence` or SHERPA's `filament: {sequence}`")
+                   help="filament YAML, `name: sequence` or `filament: {sequence}`")
     p.add_argument("--ksize", type=int, default=8)
     p.add_argument("--max-extend", type=int, default=56)
     p.add_argument("--l-max", type=int, default=40)

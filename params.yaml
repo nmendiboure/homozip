@@ -1,8 +1,8 @@
 # =====================================================================
 # homozip: the mismatch-limited zipper
 # =====================================================================
-# Minutes and nucleotides, the same units as SHERPA so that the two models
-# can be run side by side. The README has the same list as a table.
+# Minutes and nucleotides throughout. The README has the same list as a
+# table, with the provenance of every number.
 #
 # Rescaling time by kext leaves two kinetic numbers to fit, kon / kext and
 # koff0 / kext. Everything else is measured, structural, or swept.
@@ -17,13 +17,14 @@ f: 0.00157              # share of seeds landing on the homologous donor.
                         # 2040 donor pairs out of 1,295,385. See
                         # `homozip spectrum` and resources/spectrum/.
 
-k_seed: 8               # length of the initial exact match, nt. SHERPA's ksize.
+k_seed: 8               # length of the initial exact match, nt. The shortest
+                        # microhomology a nucleation can hold on to.
 
-L_commit: 30            # length at which the joint is committed, nt. One
-                        # threshold in place of SHERPA's dloop_min_size (18),
-                        # joint_l_min (80) and kre. Only L_commit - k_seed can
-                        # be identified, and that difference is the slope of a
-                        # divergence series.
+L_commit: 30            # length at which the joint is committed, nt. A single
+                        # threshold stands in for the whole post-synaptic
+                        # cascade. Only L_commit - k_seed can be identified,
+                        # and that difference is the slope of a divergence
+                        # series.
 
 max_mismatches: 0       # mismatches the zipper steps over before it blocks.
                         # 0 means every mismatch blocks, and the commit
@@ -34,23 +35,24 @@ max_mismatches: 0       # mismatches the zipper steps over before it blocks.
 
 # ---- Rates, per minute (kext per nucleotide per minute) --------------
 kon:   0.006            # a free site catches a seed. FITTED.
-                        # kon * N = 1.2 /min is SHERPA's r_on.
+                        # kon * N = 1.2 /min is the nucleation rate of the
+                        # whole filament.
 
-koff0: 0.7              # a joint falls off the DNA. FITTED.
-                        # Same number as SHERPA's r_off1.
+koff0: 0.7              # a joint falls off the DNA, at the seed length.
+                        # FITTED. See lam below for the length dependence.
 
 kext:  300              # the zipper advances by one nucleotide. FIXED, not
-                        # fitted: above about 300 nt/min nothing changes by more
-                        # than 2 %, because zipping is then instantaneous next
-                        # to koff0. SHERPA's r_elong is a deterministic drift,
-                        # so only the mean is matched here, not the variance.
+                        # fitted: doubling it moves the commit rate by 2.6 %
+                        # and making it infinite by 5.3 %, because zipping is
+                        # already instantaneous next to koff0. It sets the time
+                        # unit; only koff0/kext and kon/kext have content.
 
 lam:   null             # koff(L) = koff0 * exp(-(L - k_seed) / lam), in nt, or
                         # a flat koff if null. Flat is the settled form: the
                         # ladder was implemented and measured, and it changes
-                        # the commit rate by 3.2 %. Set lam: 8.41 to reproduce
-                        # SHERPA's per-triplet koff1_adj = 0.7, since
-                        # 3 / ln(1/0.7) = 8.41 nt.
+                        # the commit rate by 3.2 %. Set lam: 8.41 for a joint
+                        # stabilised by a factor 0.7 per helical triplet,
+                        # since 3 / ln(1/0.7) = 8.41 nt.
 
 
 # ---- Sequence: one number per track ---------------------------------
@@ -71,7 +73,7 @@ p_het: 0.271            # probability that the next nucleotide pairs in the
 
 
 # ---- Simulation -------------------------------------------------------
-t_end:     480          # minutes; SHERPA runs 8 hours
+t_end:     480          # minutes, i.e. 8 hours
 n_points:  481
 n_cells:   2000
 seed:      1999         # cell i uses seed + i

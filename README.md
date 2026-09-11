@@ -3,12 +3,10 @@
 The mismatch-limited zipper: a minimal stochastic model of how a RAD51
 filament finds its homologous donor after a double-strand break.
 
-It was written next to [SHERPA](https://github.com/nmendiboure/sherpa), a
-larger particle-based model of the same process, and it deliberately does
-much less. It keeps one step, the sequence test itself, and keeps it small
-enough to solve with a pen. The Gillespie simulation then checks the
-algebra rather than being the only source of truth, and the model exports
-to SBML so it can be run anywhere.
+It deliberately does very little. It keeps one step, the sequence test
+itself, and keeps it small enough to solve with a pen. The Gillespie
+simulation then checks the algebra rather than being the only source of
+truth, and the model exports to SBML so it can be run anywhere.
 
 Two of its numbers are fitted. Two are measured on a real genome. The rest
 are structural or swept.
@@ -54,9 +52,9 @@ Everything the model contains, and where each number comes from.
 
 | parameter | what it does | value | where it comes from |
 | --- | --- | --- | --- |
-| `N` | nucleation sites carried by the filament | 200 | structural, matches SHERPA |
-| `k_seed` | length of the initial exact match | 8 nt | structural, SHERPA's `ksize` |
-| `L_commit` | length at which the joint is committed | 30 nt | structural. Only `L_commit - k_seed` can be identified, and a divergence series measures it |
+| `N` | nucleation sites carried by the filament | 200 | structural |
+| `k_seed` | length of the initial exact match | 8 nt | structural, the shortest microhomology a nucleation can hold |
+| `L_commit` | length at which the joint is committed | 30 nt | structural. One threshold in place of the whole post-synaptic cascade. Only `L_commit - k_seed` can be identified, and a divergence series measures it |
 | `max_mismatches` | mismatches the zipper steps over before blocking | 0 | structural. `0` means every mismatch blocks |
 | `f` | share of seeds landing on the homologous donor | 1.57e-3 | **measured**: the plateau of the match-length survival curve of the LY filament against S288c, 2040 donor pairs out of 1 295 385 |
 
@@ -64,10 +62,10 @@ Everything the model contains, and where each number comes from.
 
 | parameter | what it does | value | where it comes from |
 | --- | --- | --- | --- |
-| `kon` | a free site catches a seed | 0.006 per site | **fitted**. `kon N = 1.2` is SHERPA's `r_on` |
-| `koff0` | a joint falls off the DNA | 0.7 | **fitted**. Same as SHERPA's `r_off1` |
-| `kext` | the zipper advances by one nucleotide | 300 nt/min | fixed, not fitted. Above about 300 nt/min nothing changes by more than 2 %, because zipping is then effectively instantaneous next to `koff0`. Same value as SHERPA's `r_elong`, which is a deterministic drift there, so only the mean is matched, not the variance |
-| `lam` | decay length of `koff(L) = koff0 exp(-(L-k)/lam)` | `null`, meaning a flat `koff` | a modelling choice, and a conclusion rather than an assumption. The ladder was implemented and measured: it changes the commit rate by 3.2 %. Set `lam: 8.41` to reproduce SHERPA's per-triplet `koff1_adj = 0.7` for comparison |
+| `kon` | a free site catches a seed | 0.006 per site | **fitted**. `kon N = 1.2` per minute is the nucleation rate of the whole filament |
+| `koff0` | a joint falls off the DNA, at the seed length | 0.7 | **fitted** |
+| `kext` | the zipper advances by one nucleotide | 300 nt/min | fixed, not fitted. Doubling it moves the commit rate by 2.6 % and making it infinite by 5.3 %, because zipping is already effectively instantaneous next to `koff0`. It sets the time unit: only `koff0/kext` and `kon/kext` carry content |
+| `lam` | decay length of `koff(L) = koff0 exp(-(L-k)/lam)` | `null`, meaning a flat `koff` | a modelling choice, and a conclusion rather than an assumption. The ladder was implemented and measured: it changes the commit rate by 3.2 %. Set `lam: 8.41` for a joint stabilised by a factor 0.7 per helical triplet |
 
 ### Sequence
 
@@ -80,7 +78,7 @@ Everything the model contains, and where each number comes from.
 
 | parameter | what it does | value |
 | --- | --- | --- |
-| `t_end` | length of a run, minutes | 480, which is SHERPA's 8 hours |
+| `t_end` | length of a run, minutes | 480, i.e. 8 hours |
 | `n_points` | output grid points | 481 |
 | `n_cells` | independent runs | 2000 |
 | `seed` | first random seed; cell *i* uses `seed + i` | 1999 |
@@ -109,9 +107,9 @@ does.
 **The exponential decline of homeologous recombination comes for free, and
 its slope is a measurement.** With `p = 1 - delta`, the yield goes as
 `exp(-n delta)`, so the slope of a divergence series measures
-`L_commit - k_seed` directly. SHERPA has two candidate thresholds,
-`dloop_min_size = 18` and `joint_l_min = 80`, predicting slopes of 10 and
-72. If mismatches are tolerated, the curve is flat at low divergence and
+`L_commit - k_seed` directly. A threshold of 18 nt and one of 80 nt
+predict slopes of 10 and 72, which a divergence series tells apart at a
+glance. If mismatches are tolerated, the curve is flat at low divergence and
 bends into the exponential later; the width of that shoulder measures `m`.
 
 **The commitment length can be derived instead of fitted.** Background
@@ -124,8 +122,8 @@ n >= ln( (1 - f) / (f eps) ) / ln( p_hom / p_het )
 
 which contains no rate and nothing fitted. With the measured `f` and
 `p_het` this gives `L_commit >= 17` at one false commitment per hundred,
-19 per thousand, 20 per ten thousand. SHERPA's fitted
-`dloop_min_size = 18` sits inside that bracket.
+19 per thousand, 20 per ten thousand. Commitment thresholds in that range
+are commonly fitted to recombination data; here the range is derived.
 
 **The search time is exactly solvable.** Because the sites are
 independent, the time to the first donor commitment is the minimum of `N`
@@ -140,8 +138,8 @@ That last result is also the model's most useful failure. Wiktor et al.
 measure a peaked, gamma-shaped search time in *E. coli*. No memoryless
 mechanism produces that shape, so a peak has to come either from steps
 before the test, such as resection, which is a pure time offset, or from a
-search that accumulates progress. Filament mobility and Hi-C proximity are
-exactly what this model throws away and SHERPA keeps.
+search that accumulates progress. Filament mobility and chromosome
+proximity are exactly what this model throws away.
 
 
 ## What it leaves out
@@ -151,7 +149,7 @@ proofreading stage, no resection delay, no genome index. Each of those is
 either downstream of commitment, or acts identically on both tracks, or
 enters only through `f`. The reasoning for each is in
 [`docs/homology-zipper.md`](docs/homology-zipper.md), along with the full
-derivations and a parameter-by-parameter map onto SHERPA.
+derivations.
 
 
 ## Install

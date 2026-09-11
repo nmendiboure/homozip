@@ -7,11 +7,12 @@ name = "homozip"
 description = "The mismatch-limited zipper: a minimal stochastic model of homology search"
 dynamic = ["version"]
 readme = "README.md"
-license = {text = "GPLv3"}
+license = {text = "AGPL-3.0-or-later"}
 authors = [
     {name = "Nicolas Mendiboure", email = "nicolas.mendiboure@ens-lyon.fr"}
 ]
 classifiers = [
+    "License :: OSI Approved :: GNU Affero General Public License v3 or later (AGPLv3+)",
     "Intended Audience :: Science/Research",
     "Programming Language :: Python :: 3 :: Only",
     "Programming Language :: Python :: 3.12",

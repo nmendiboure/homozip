@@ -1,11 +1,14 @@
 """
-The figures.
+The figures. One plot per file, PDF only, nothing drawn inside anything
+else.
 
-model.png     A  the divergence law, and what tolerated mismatches do to it
-              B  the best filament stability
-              C  what a longer test costs in speed and buys in stringency
-              D  first passage, exact against Gillespie
-spectrum.png  the genome measurement behind p_het and f
+    divergence.pdf          the divergence law, and what a tolerance does to it
+    filament_stability.pdf  the best filament stability
+    commitment_length.pdf   what a longer test costs, and what it buys
+    first_passage.pdf       first passage, exact against Gillespie
+    hazard.pdf              the single-site hazard: the transit is the only memory
+    spectrum_survival.pdf   the match-length spectrum behind f
+    spectrum_hazard.pdf     the measured p(L) behind p_het
 """
 
 from __future__ import annotations
@@ -74,8 +77,8 @@ def panel_divergence(ax, prm: Params, n_rep: int, seed: int) -> None:
     ax.set_ylim(1e-3, 3.0)
     ax.set_xlabel(r"donor divergence $\delta$")
     ax.set_ylabel(r"$P_{\mathrm{commit}}$ per seed")
-    ax.set_title("A — The divergence law, and the shoulder a tolerance adds",
-                 fontsize=10)
+    ax.set_title("The divergence law, and the shoulder a tolerance adds",
+                 fontsize=11)
     ax.legend(fontsize=7, loc="lower left")
     ax.grid(True, ls="--", alpha=0.4)
 
@@ -91,12 +94,12 @@ def panel_koff_optimum(ax, prm: Params) -> None:
         ax.axvline(ko_star / prm.kext, color=color, ls=":", lw=1.0)
 
     ax.axvline(prm.koff0 / prm.kext, color="black", lw=1.4)
-    ax.text(prm.koff0 / prm.kext * 0.8, 1.6, r"SHERPA $r_{off1}/r_{elong}$",
+    ax.text(prm.koff0 / prm.kext * 0.8, 1.6, "this calibration",
             fontsize=7, rotation=90, ha="right", va="top")
     ax.set_ylim(1e-3, 3.0)
     ax.set_xlabel(r"$k_{off,0} / k_{ext}$   (dotted: best value for each $k_{on}$)")
     ax.set_ylabel("commit rate (normalised)")
-    ax.set_title("B — How stable the filament should be", fontsize=10)
+    ax.set_title("How stable the filament should be", fontsize=11)
     ax.legend(fontsize=7, loc="lower left")
     ax.grid(True, which="both", ls="--", alpha=0.35)
 
@@ -121,13 +124,19 @@ def panel_commit_length(ax, prm: Params) -> None:
     ax2.set_ylabel("false commitments per true one (dotted)")
     ax2.set_ylim(1e-30, 1e3)
 
-    for lc, label in ((18, "SHERPA\ndloop_min_size"), (prm.l_commit, r"$L_{commit}$")):
+    # The shortest test on the swept grid that meets one false commitment per
+    # thousand. Derived from f and p_het alone, so it needs no outside value.
+    marks = [(prm.l_commit, r"$L_{commit}$")]
+    bound = next((int(lc) for lc, o in zip(lcs, odds) if o <= 1e-3), None)
+    if bound is not None and bound != prm.l_commit:
+        marks.insert(0, (bound, "fidelity bound\n$\\epsilon = 10^{-3}$"))
+    for lc, label in marks:
         ax.axvline(lc, color="black", lw=1.0, alpha=0.6)
         ax.text(lc + 0.5, ax.get_ylim()[0] * 1.5, label, fontsize=6.5, va="bottom")
 
     ax.set_xlabel(r"commitment length $L_{commit}$ (nt)")
     ax.set_ylabel("mean search time (min)")
-    ax.set_title("C — What a longer test costs, and what it buys", fontsize=10)
+    ax.set_title("What a longer test costs, and what it buys", fontsize=11)
     h1, l1 = ax.get_legend_handles_labels()
     h2, l2 = ax2.get_legend_handles_labels()
     ax.legend(h1 + h2, l1 + l2, fontsize=7, loc="upper left")
@@ -155,114 +164,144 @@ def panel_first_passage(ax, prm: Params, n_cells: int, seed: int) -> dict:
             label=r"memoryless, $\lambda = k_{on} f S_{free} P_{commit}$")
     ax.set_xlabel("time of the first donor commitment (min)")
     ax.set_ylabel("density (per cell)")
-    ax.set_title("D — First passage: exact against Gillespie", fontsize=10)
+    ax.set_title("First passage: exact against Gillespie", fontsize=11)
     ax.legend(fontsize=7, loc="upper right")
     ax.grid(True, ls="--", alpha=0.4)
-
-    # Inset: the single-site hazard, on the seconds scale. It rises over one
-    # transit time and is flat after that, which is the whole memory of the
-    # search.
-    transit = theory.transit_time_mean(prm)
-    t_in = np.linspace(0.0, 360.0 * transit, 400)
-    fp = theory.first_passage(prm, t_in / 60.0)
-    ins = ax.inset_axes([0.55, 0.35, 0.4, 0.3])
-    ins.plot(t_in, prm.n_sites * fp["hazard_H"] / rate, color=RED, lw=1.4)
-    ins.axhline(1.0, color="black", ls="--", lw=0.8)
-    ins.axvline(60.0 * transit, color=GREY, lw=0.8, ls=":")
-    ins.set_xlabel("t (s)", fontsize=6.5)
-    ins.set_ylabel(r"$N h_1(t)\,/\,\lambda$", fontsize=6.5)
-    ins.set_title(f"the {60 * transit:.0f} s transit is the only memory", fontsize=6.5)
-    ins.tick_params(labelsize=6)
-    ins.set_ylim(0, 1.2)
     return {"ensemble": ens, "exact": dist}
 
 
+def panel_hazard(ax, prm: Params) -> None:
+    """The single-site hazard, on the seconds scale. It rises over one
+    transit time and is flat after that, which is the whole memory of the
+    search. first_passage.pdf is the same statement on the minutes scale."""
+    rate = theory.commit_rate(prm)
+    transit = theory.transit_time_mean(prm)
+    t_s = np.linspace(0.0, 360.0 * transit, 400)
+    fp = theory.first_passage(prm, t_s / 60.0)
+
+    ax.plot(t_s, prm.n_sites * fp["hazard_H"] / rate, color=RED, lw=2)
+    ax.axhline(1.0, color="black", ls="--", lw=1.0,
+               label=r"$\lambda = k_{on} f S_{free} P_{commit}$")
+    ax.axvline(60.0 * transit, color=GREY, lw=1.0, ls=":")
+    ax.annotate(f"one transit, {60 * transit:.1f} s",
+                xy=(60.0 * transit, 0.30), xytext=(60.0 * transit * 1.4, 0.22),
+                fontsize=7.5, color=GREY,
+                arrowprops=dict(arrowstyle="->", color=GREY, lw=0.9))
+    ax.set_ylim(0, 1.2)
+    ax.set_xlim(0, t_s[-1])
+    ax.set_xlabel("t (s)")
+    ax.set_ylabel(r"$N\,h_1(t)\;/\;\lambda$")
+    ax.set_title("The transit is the only memory of the search", fontsize=11)
+    ax.legend(fontsize=7, loc="lower right")
+    ax.grid(True, ls="--", alpha=0.4)
+
+
 # =====================================================================
-# Figures
+# The two spectrum panels
 # =====================================================================
 
-def figure_model(prm: Params, outdir: str, quick: bool = False) -> str:
-    n_rep = 300 if quick else 4000
-    n_cells = 100 if quick else prm.n_cells
-    fig, axs = plt.subplots(2, 2, figsize=(11.5, 9), constrained_layout=True)
-    panel_divergence(axs[0, 0], prm, n_rep, prm.seed)
-    panel_koff_optimum(axs[0, 1], prm)
-    panel_commit_length(axs[1, 0], prm)
-    panel_first_passage(axs[1, 1], prm, n_cells, prm.seed)
-
-    os.makedirs(outdir, exist_ok=True)
-    out = os.path.join(outdir, "model.png")
-    fig.savefig(out, dpi=160)
-    fig.savefig(out.replace(".png", ".pdf"))
-    plt.close(fig)
-    return out
-
-
-def figure_spectrum(genome_json: str, background_json: str, outdir: str,
-                    l_commit: int = 30) -> str:
-    agg = genome.load(genome_json)
-    bg = genome.load(background_json)
+def panel_spectrum_survival(ax, agg: dict, bg: dict, l_commit: int) -> None:
     k = agg["ksize"]
     L_a, S_a = np.array(agg["L"], float), np.array(agg["survival"])
     L_b, S_b = np.array(bg["L"], float), np.array(bg["survival"])
     f_donor = genome.donor_fraction(agg, l_commit)
     p_het = genome.background_p(bg)
 
-    fig, (ax0, ax1) = plt.subplots(1, 2, figsize=(11.5, 4.6), constrained_layout=True)
+    ax.semilogy(L_a, np.where(S_a > 0, S_a, np.nan), "o-", ms=3.5, lw=1.6,
+                color=BLUE, label="measured, whole genome")
+    ax.semilogy(L_b, np.where(S_b > 0, S_b, np.nan), "s-", ms=3.5, lw=1.6,
+                color=RED, label="measured, donor masked (the background)")
+    ax.semilogy(L_a, 0.25 ** (L_a - k), ":", lw=1.4, color=GREY,
+                label=r"random null  $0.25^{\,L-k}$")
+    ax.semilogy(L_a, p_het ** (L_a - k), "--", lw=1.4, color=ORANGE,
+                label=rf"composition null  ${p_het:.3f}^{{\,L-k}}$")
+    ax.semilogy(L_a, (1 - f_donor) * p_het ** (L_a - k) + f_donor, "-", lw=1.0,
+                color="black", alpha=0.6,
+                label=r"two tracks  $(1-f)\,p_{het}^{L-k} + f$")
+    ax.axhline(f_donor, color=BLUE, lw=1.0, alpha=0.4)
+    ax.annotate(f"plateau: the donor alone" + "\n" + f"$f$ = {f_donor:.2e}",
+                xy=(24, f_donor * 2.2), fontsize=7.5, color=BLUE)
+    ax.axvline(l_commit, color="black", lw=1.2)
+    ax.annotate(r"$L_{commit}$", xy=(l_commit - 0.6, 3e-6), fontsize=8,
+                rotation=90, ha="right")
+    ax.set_ylim(1e-7, 2)
+    ax.set_xlim(k, 34)
+    ax.set_xlabel("L  (matched nt)")
+    ax.set_ylabel(r"$P(M \geq L)$  per (site, locus) pair")
+    ax.set_title("Match-length spectrum, LY filament against S288c", fontsize=11)
+    ax.legend(fontsize=7.5, loc="lower left")
+    ax.grid(True, which="both", ls="--", alpha=0.35)
 
-    ax0.semilogy(L_a, np.where(S_a > 0, S_a, np.nan), "o-", ms=3.5, lw=1.6,
-                 color=BLUE, label="measured, whole genome")
-    ax0.semilogy(L_b, np.where(S_b > 0, S_b, np.nan), "s-", ms=3.5, lw=1.6,
-                 color=RED, label="measured, donor masked (the background)")
-    ax0.semilogy(L_a, 0.25 ** (L_a - k), ":", lw=1.4, color=GREY,
-                 label=r"random null  $0.25^{\,L-k}$")
-    ax0.semilogy(L_a, p_het ** (L_a - k), "--", lw=1.4, color=ORANGE,
-                 label=rf"composition null  ${p_het:.3f}^{{\,L-k}}$")
-    ax0.semilogy(L_a, (1 - f_donor) * p_het ** (L_a - k) + f_donor, "-", lw=1.0,
-                 color="black", alpha=0.6,
-                 label=r"two tracks  $(1-f)\,p_{het}^{L-k} + f$")
-    ax0.axhline(f_donor, color=BLUE, lw=1.0, alpha=0.4)
-    ax0.annotate(f"plateau: the donor alone\n$f$ = {f_donor:.2e}",
-                 xy=(24, f_donor * 2.2), fontsize=7.5, color=BLUE)
-    ax0.axvline(l_commit, color="black", lw=1.2)
-    ax0.annotate(r"$L_{commit}$", xy=(l_commit - 0.6, 3e-6), fontsize=8,
-                 rotation=90, ha="right")
-    ax0.set_ylim(1e-7, 2)
-    ax0.set_xlim(k, 34)
-    ax0.set_xlabel("L  (matched nt)")
-    ax0.set_ylabel(r"$P(M \geq L)$  per (site, locus) pair")
-    ax0.set_title("Match-length spectrum, LY filament against S288c", fontsize=10)
-    ax0.legend(fontsize=7.5, loc="lower left")
-    ax0.grid(True, which="both", ls="--", alpha=0.35)
 
+def panel_spectrum_hazard(ax, agg: dict, bg: dict) -> None:
+    k = agg["ksize"]
+    p_het = genome.background_p(bg)
     hL_a, h_a = np.array(agg["hazard_L"], float), np.array(agg["hazard"])
     hL_b, h_b = np.array(bg["hazard_L"], float), np.array(bg["hazard"])
     ok = h_b > 0
-    ax1.plot(hL_a, h_a, "o-", ms=3.5, lw=1.6, color=BLUE, label="whole genome")
-    ax1.plot(hL_b[ok], h_b[ok], "s-", ms=3.5, lw=1.6, color=RED,
-             label="background only (donor masked)")
-    ax1.axhline(0.25, ls=":", lw=1.4, color=GREY)
-    ax1.axhline(p_het, ls="--", lw=1.4, color=ORANGE)
-    ax1.annotate("0.25  random null", xy=(21.5, 0.205), fontsize=7.5, color=GREY)
-    ax1.annotate(f"{p_het:.3f}  genome composition", xy=(18.4, 0.283),
-                 fontsize=7.5, color=ORANGE)
-    ax1.annotate("the donor takes over\nthe surviving population", xy=(13.3, 0.62),
-                 xytext=(14.8, 0.74), fontsize=7.5, color=BLUE,
-                 arrowprops=dict(arrowstyle="->", color=BLUE, lw=1.0))
-    ax1.annotate("repeats\n(Ty, paralogues)", xy=(18.1, 0.44), xytext=(19.6, 0.58),
-                 fontsize=7.5, color=RED,
-                 arrowprops=dict(arrowstyle="->", color=RED, lw=1.0))
-    ax1.set_ylim(0, 1.08)
-    ax1.set_xlim(k, 24)
-    ax1.set_xlabel("L  (matched nt)")
-    ax1.set_ylabel(r"$p(L) = P(M \geq L{+}1)\,/\,P(M \geq L)$")
-    ax1.set_title(r"The model's $p$, measured", fontsize=10)
-    ax1.legend(fontsize=7.5, loc="upper left")
-    ax1.grid(True, ls="--", alpha=0.35)
 
+    ax.plot(hL_a, h_a, "o-", ms=3.5, lw=1.6, color=BLUE, label="whole genome")
+    ax.plot(hL_b[ok], h_b[ok], "s-", ms=3.5, lw=1.6, color=RED,
+            label="background only (donor masked)")
+    ax.axhline(0.25, ls=":", lw=1.4, color=GREY)
+    ax.axhline(p_het, ls="--", lw=1.4, color=ORANGE)
+    ax.annotate("0.25  random null", xy=(21.5, 0.205), fontsize=7.5, color=GREY)
+    ax.annotate(f"{p_het:.3f}  genome composition", xy=(18.4, 0.283),
+                fontsize=7.5, color=ORANGE)
+    ax.annotate("the donor takes over" + "\n" + "the surviving population",
+                xy=(13.3, 0.62), xytext=(14.8, 0.74), fontsize=7.5, color=BLUE,
+                arrowprops=dict(arrowstyle="->", color=BLUE, lw=1.0))
+    ax.annotate("repeats" + "\n" + "(Ty, paralogues)",
+                xy=(18.1, 0.44), xytext=(19.6, 0.58), fontsize=7.5, color=RED,
+                arrowprops=dict(arrowstyle="->", color=RED, lw=1.0))
+    ax.set_ylim(0, 1.08)
+    ax.set_xlim(k, 24)
+    ax.set_xlabel("L  (matched nt)")
+    ax.set_ylabel(r"$p(L) = P(M \geq L{+}1)\,/\,P(M \geq L)$")
+    ax.set_title(r"The model's $p$, measured", fontsize=11)
+    ax.legend(fontsize=7.5, loc="upper left")
+    ax.grid(True, ls="--", alpha=0.35)
+
+
+# =====================================================================
+# Figures: one plot per file
+# =====================================================================
+
+def _plot(outdir: str, name: str, draw, figsize=(7.0, 5.2)) -> str:
+    """One axes, one PDF, named after what it shows."""
+    fig, ax = plt.subplots(figsize=figsize, constrained_layout=True)
+    draw(ax)
     os.makedirs(outdir, exist_ok=True)
-    out = os.path.join(outdir, "spectrum.png")
-    fig.savefig(out, dpi=170)
-    fig.savefig(out.replace(".png", ".pdf"))
+    out = os.path.join(outdir, f"{name}.pdf")
+    fig.savefig(out)
     plt.close(fig)
     return out
+
+
+def figure_model(prm: Params, outdir: str, quick: bool = False) -> list[str]:
+    n_rep = 300 if quick else 4000
+    n_cells = 100 if quick else prm.n_cells
+    return [
+        _plot(outdir, "divergence",
+              lambda ax: panel_divergence(ax, prm, n_rep, prm.seed)),
+        _plot(outdir, "filament_stability",
+              lambda ax: panel_koff_optimum(ax, prm)),
+        _plot(outdir, "commitment_length",
+              lambda ax: panel_commit_length(ax, prm)),
+        _plot(outdir, "first_passage",
+              lambda ax: panel_first_passage(ax, prm, n_cells, prm.seed)),
+        _plot(outdir, "hazard",
+              lambda ax: panel_hazard(ax, prm)),
+    ]
+
+
+def figure_spectrum(genome_json: str, background_json: str, outdir: str,
+                    l_commit: int = 30) -> list[str]:
+    agg = genome.load(genome_json)
+    bg = genome.load(background_json)
+    return [
+        _plot(outdir, "spectrum_survival",
+              lambda ax: panel_spectrum_survival(ax, agg, bg, l_commit)),
+        _plot(outdir, "spectrum_hazard",
+              lambda ax: panel_spectrum_hazard(ax, agg, bg)),
+    ]
