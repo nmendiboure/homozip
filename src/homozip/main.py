@@ -1,4 +1,9 @@
-"""homozip build | theory | run | spectrum | figure"""
+"""homozip build | theory | run | spectrum | figure
+
+Runnable as a script (python src/homozip/main.py ...) or through the
+homozip entry point declared in pyproject.toml; the imports are absolute
+so that both work.
+"""
 
 from __future__ import annotations
 
@@ -9,8 +14,8 @@ import os
 import numpy as np
 import yaml
 
-from . import __version__, theory
-from .model import Params, build_network, to_antimony, export_sbml, MODEL_NAME
+from homozip import __version__, theory
+from homozip.model import Params, build_network, to_antimony, export_sbml, MODEL_NAME
 
 
 def load_params(path: str) -> Params:
@@ -71,7 +76,7 @@ def cmd_theory(args) -> None:
 
 
 def cmd_run(args) -> None:
-    from . import simulate
+    from homozip import simulate
     prm = load_params(args.params)
     n_cells = args.cells or prm.n_cells
     print(f"running {n_cells} cells, t_end = {prm.t_end} min, uid {prm.uid()}",
@@ -105,7 +110,7 @@ def cmd_run(args) -> None:
 
 
 def cmd_spectrum(args) -> None:
-    from . import genome
+    from homozip import genome
     spec = genome.measure(args.genome, args.filament, ksize=args.ksize,
                           max_extend=args.max_extend, l_max=args.l_max,
                           masks=tuple(args.mask))
@@ -135,7 +140,7 @@ def cmd_spectrum(args) -> None:
 
 
 def cmd_figure(args) -> None:
-    from . import figures
+    from homozip import figures
     prm = load_params(args.params)
     fig_dir = os.path.join(args.output, "fig")
 
@@ -190,15 +195,16 @@ def build_parser() -> argparse.ArgumentParser:
                    default="resources/spectrum/background.json")
 
     p = sub.add_parser("spectrum", help="measure the match-length spectrum")
-    p.add_argument("--genome", required=True, help="FASTA")
-    p.add_argument("--filament", required=True, help="SHERPA filament YAML")
+    p.add_argument("--genome", default="resources/S288c-Lys2.fa", help="FASTA")
+    p.add_argument("--filament", default="resources/LY.yaml",
+                   help="filament YAML, `name: sequence` or SHERPA's `filament: {sequence}`")
     p.add_argument("--ksize", type=int, default=8)
     p.add_argument("--max-extend", type=int, default=56)
     p.add_argument("--l-max", type=int, default=40)
     p.add_argument("--l-commit", type=int, default=30)
     p.add_argument("--mask", action="append", default=[], metavar="CHR:START-END",
                    help="blank a genomic interval before indexing (repeatable)")
-    p.add_argument("--output", default="output/spectrum.json")
+    p.add_argument("-o", "--output", default="output/spectrum.json")
     p.set_defaults(func=cmd_spectrum)
     return ap
 

@@ -33,7 +33,7 @@ dependencies = [
 Homepage = "https://github.com/nmendiboure/homozip"
 
 [project.scripts]
-homozip = "homozip.cli:main"
+homozip = "homozip.main:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

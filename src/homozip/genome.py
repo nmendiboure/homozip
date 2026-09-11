@@ -50,11 +50,17 @@ def read_fasta(path: str) -> dict[str, np.ndarray]:
 
 
 def read_filament(path: str) -> np.ndarray:
-    """The ssDNA sequence of a SHERPA filament YAML."""
+    """The ssDNA sequence of a filament YAML, written either as a single
+    `name: sequence` entry or in SHERPA's `filament: {sequence: ...}` form."""
     with open(path, "r", encoding="utf-8") as fh:
         data = yaml.safe_load(fh)
-    seq = data["filament"]["sequence"].strip()
-    return CODE[np.frombuffer(seq.encode(), dtype=np.uint8)]
+    if isinstance(data, dict) and "filament" in data:
+        seq = data["filament"]["sequence"]
+    elif isinstance(data, dict) and len(data) == 1:
+        seq = next(iter(data.values()))
+    else:
+        raise ValueError(f"{path}: expected `name: sequence` or `filament: {{sequence: ...}}`")
+    return CODE[np.frombuffer(str(seq).strip().encode(), dtype=np.uint8)]
 
 
 def parse_mask(spec: str) -> tuple[str, int, int]:

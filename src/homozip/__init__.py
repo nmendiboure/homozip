@@ -11,7 +11,7 @@ number, the probability that the next nucleotide pairs.
     simulate  Gillespie runs (tellurium)
     genome    measures p_het and f on a real genome
     figures   the figures
-    cli       homozip build | theory | run | spectrum | figure
+    main      homozip build | theory | run | spectrum | figure
 """
 
 __version__ = "1.0.0.dev0"
