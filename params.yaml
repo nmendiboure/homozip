@@ -1,77 +1,77 @@
 # =====================================================================
-# Population
+# homozip: the mismatch-limited zipper
 # =====================================================================
-N: 200                  # number of microhomology slots on the filament
-f: 0.002                # fraction of association events landing on a homologous donor
-
-# Bucket discretization of fragment length L (nt).
-# Dense in the kinetically critical low-L region, coarse in the saturated
-# high-L tail. Length count = 12.
-intermediates: [8, 9, 12, 15, 21, 24, 30, 45, 65, 95, 140, 200]
+# Minutes and nucleotides, the same units as SHERPA so that the two models
+# can be run side by side. The README has the same list as a table.
+#
+# Rescaling time by kext leaves two kinetic numbers to fit, kon / kext and
+# koff0 / kext. Everything else is measured, structural, or swept.
 
 
-# =====================================================================
-# Kinetics
-# =====================================================================
+# ---- Structure of the search ----------------------------------------
+N: 200                  # nucleation sites carried by the filament
 
-# ---- Association ----
-kon: 0.04
+f: 0.00157              # share of seeds landing on the homologous donor.
+                        # MEASURED, not fitted: the plateau of the match-length
+                        # survival curve of the LY filament against S288c,
+                        # 2040 donor pairs out of 1,295,385. See
+                        # `homozip spectrum` and resources/spectrum/.
 
+k_seed: 8               # length of the initial exact match, nt. SHERPA's ksize.
 
-# ---- Dissociation: continuous exponential decay in length ----
-# Replaces the historical plateau koff1 / koff1_factor^min(c, 4) by:
-#     k_off1(L) = max(koff1 * exp(-koff1_alpha * (L - koff1_lref)), koff1_floor)
-# koff1_alpha = ln(1.3)/3 ~ 0.087 reproduces the per-triplet decay of the
-# original koff1_factor=1.3 table without the artificial plateau.
-koff1: 0.04
-koff1_alpha: 0.087
-koff1_floor: 0.001
-koff1_lref:  8
+L_commit: 30            # length at which the joint is committed, nt. One
+                        # threshold in place of SHERPA's dloop_min_size (18),
+                        # joint_l_min (80) and kre. Only L_commit - k_seed can
+                        # be identified, and that difference is the slope of a
+                        # divergence series.
 
-
-# ---- Extension: per-nt rate, rescaled to bucket spacing ----
-# Bucket-to-bucket transition rate is kext / (L_{i+1} - L_i), so kext is
-# now interpretable as "nt extended per unit time" rather than "events
-# per bucket transition". HT extension is gated by a mismatch tolerance.
-kext:    0.4
-eps_mm:  0.01
+max_mismatches: 0       # mismatches the zipper steps over before it blocks.
+                        # 0 means every mismatch blocks, and the commit
+                        # probability is p^n Q. With m > 0 it becomes
+                        # Q Prob[Binomial(n, delta) <= m], which is flat at low
+                        # divergence; the width of that shoulder measures m.
 
 
-# ---- D-loop formation: thresholded sigmoid in fragment length ----
-#     p_dloop(L) = 0                              if L < dloop_lmin
-#                = 1 / (1 + exp(-(L - L_half)/w)) otherwise
-# Replaces the former 5-tier escalator. Calibrate L_half / w against
-# genomatch original D-loop size distributions.
-kdloop:        0.001
-dloop_lmin:    21
-dloop_l_half:  50
-dloop_w:       10
+# ---- Rates, per minute (kext per nucleotide per minute) --------------
+kon:   0.006            # a free site catches a seed. FITTED.
+                        # kon * N = 1.2 /min is SHERPA's r_on.
+
+koff0: 0.7              # a joint falls off the DNA. FITTED.
+                        # Same number as SHERPA's r_off1.
+
+kext:  300              # the zipper advances by one nucleotide. FIXED, not
+                        # fitted: above about 300 nt/min nothing changes by more
+                        # than 2 %, because zipping is then instantaneous next
+                        # to koff0. SHERPA's r_elong is a deterministic drift,
+                        # so only the mean is matched here, not the variance.
+
+lam:   null             # koff(L) = koff0 * exp(-(L - k_seed) / lam), in nt, or
+                        # a flat koff if null. Flat is the settled form: the
+                        # ladder was implemented and measured, and it changes
+                        # the commit rate by 3.2 %. Set lam: 8.41 to reproduce
+                        # SHERPA's per-triplet koff1_adj = 0.7, since
+                        # 3 / ln(1/0.7) = 8.41 nt.
 
 
-# ---- D-loop disruption: inverse-length stabilization (genomatch-faithful) ----
-#     k_off2(L) = koff2 * min(1, koff2_lref / L)
-# This dependence is *lost* in the previous Gillespie (DHM scalar). We
-# restore it by tracking D-loops per length bucket (DHM_L, DHT_L).
-koff2:       4.0e-4
-koff2_lref:  21
+# ---- Sequence: one number per track ---------------------------------
+delta: 0.0              # divergence of the homologous donor, so p_hom = 1 - delta.
+                        # This is the variable of the experiment. 0 is isogenic,
+                        # and 0.01 to 0.10 covers the classical homeologous
+                        # recombination series. Give p_hom directly instead if
+                        # that is more convenient, but not both.
+
+p_het: 0.271            # probability that the next nucleotide pairs in the
+                        # genome background. MEASURED, flat over L = 8..14 with
+                        # the donor masked (0.269 to 0.284, mean 0.274; 0.271 is
+                        # the value at the seed length). Not 1/4: the yeast
+                        # genome is AT-rich, and the sum of squared base
+                        # frequencies at 38 % GC is 0.264. A measured profile
+                        # [p(8), p(9), ...] is accepted here as well, which is
+                        # how the repeat tail above L = 15 can be fed in.
 
 
-# ---- Recombination ----
-kre: 0.004
-
-
-# =====================================================================
-# Resection delay (Gamma)
-# =====================================================================
-# Sampled per cell. During the delay, no chemistry happens: the solver
-# is *not* invoked, we only emit a flat S=N segment in the trajectory.
-gamma_k:     9
-gamma_theta: 105
-
-
-# =====================================================================
-# Simulation
-# =====================================================================
-seed_zero:   1999
-timepoints:  10_000
-every:       10
+# ---- Simulation -------------------------------------------------------
+t_end:     480          # minutes; SHERPA runs 8 hours
+n_points:  481
+n_cells:   2000
+seed:      1999         # cell i uses seed + i

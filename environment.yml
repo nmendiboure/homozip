@@ -1,8 +1,9 @@
-name: tellurium_env
+name: homozip
 channels:
-  - defaults
   - conda-forge
+  - defaults
 dependencies:
-  - pip>=24
   - python=3.12
-  - python-build=1.2.2.post1
+  - pip>=24
+  - pip:
+      - -r requirements.txt

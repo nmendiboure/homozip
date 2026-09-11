@@ -3,10 +3,9 @@ requires = ["setuptools>=74.0.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "sherpa-ssa"
-version = "1.0.0rc0"
-description = "Stochastic and comprehensive framework to study homology search in DNA repair using Gillespie algorithm"
-dynamic = ["dependencies"]
+name = "homozip"
+description = "The mismatch-limited zipper: a minimal stochastic model of homology search"
+dynamic = ["version", "dependencies"]
 readme = "README.md"
 license = {text = "GPLv3"}
 authors = [
@@ -15,26 +14,27 @@ authors = [
 classifiers = [
     "Intended Audience :: Science/Research",
     "Programming Language :: Python :: 3 :: Only",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
-    "Programming Language :: Python :: 3.13",
     "Topic :: Scientific/Engineering",
     "Topic :: Scientific/Engineering :: Bio-Informatics",
-    "Topic :: Scientific/Engineering :: System-Biology",
     "Operating System :: Unix",
     "Operating System :: MacOS"
 ]
 requires-python = "~=3.12"
 
 [project.urls]
-Homepage = "https://github.com/nmendiboure/sherpa-ssa"
+Homepage = "https://github.com/nmendiboure/homozip"
+
+[project.scripts]
+homozip = "homozip.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
-[project.scripts]
-sherpa-ssa = "sherpassa.main:main"
-
 [tool.setuptools.dynamic]
+version = {attr = "homozip.__version__"}
 dependencies = {file = "requirements.txt"}
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
