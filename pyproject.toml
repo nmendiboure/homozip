@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "homozip"
-description = "The mismatch-limited zipper: a minimal stochastic model of homology search"
+description = "The mismatch-limited zipper: a minimal, exactly solvable model of homology search"
 dynamic = ["version"]
 readme = "README.md"
 license = {text = "AGPL-3.0-or-later"}
@@ -27,7 +27,6 @@ dependencies = [
     "numpy>=1.26.0,<2.0",
     "pyyaml~=6.0.2",
     "scipy==1.14.1",
-    "tellurium==2.2.10",
 ]
 
 [project.urls]

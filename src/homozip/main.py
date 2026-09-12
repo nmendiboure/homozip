@@ -1,4 +1,4 @@
-"""homozip build | theory | run | spectrum | figure
+"""homozip theory | figures | spectrum
 
 Runnable as a script (python src/homozip/main.py ...) or through the
 homozip entry point declared in pyproject.toml; the imports are absolute
@@ -11,11 +11,10 @@ import argparse
 import math
 import os
 
-import numpy as np
 import yaml
 
-from homozip import __version__, theory
-from homozip.model import Params, build_network, to_antimony, export_sbml, MODEL_NAME
+from homozip import __version__, model
+from homozip.model import Params
 
 
 def load_params(path: str) -> Params:
@@ -31,39 +30,18 @@ def _fmt(value) -> str:
 # Commands
 # =====================================================================
 
-def cmd_build(args) -> None:
-    prm = load_params(args.params)
-    net = build_network(prm)
-    src = to_antimony(net, prm)
-
-    outdir = os.path.join(args.output, "model")
-    os.makedirs(outdir, exist_ok=True)
-    txt = os.path.join(outdir, f"{MODEL_NAME}.txt")
-    xml = os.path.join(outdir, f"{MODEL_NAME}.xml")
-    with open(txt, "w", encoding="utf-8") as fh:
-        fh.write(src)
-    with open(xml, "w", encoding="utf-8") as fh:
-        fh.write(export_sbml(src))
-
-    print(f"uid        {prm.uid()}")
-    print(f"species    {len(net.species)}")
-    print(f"reactions  {len(net.reactions)}")
-    print(f"antimony   {txt}")
-    print(f"sbml       {xml}")
-
-
 def cmd_theory(args) -> None:
     prm = load_params(args.params)
-    summary = theory.summarize(prm, exact=not args.no_exact)
+    summary = model.summarize(prm, exact=not args.no_exact)
     width = max(len(k) for k in summary)
     for key, value in summary.items():
         print(f"{key:<{width}}  {_fmt(value)}")
 
     if prm.max_mismatches == 0 and isinstance(prm.p_hom, float) \
             and isinstance(prm.p_het, float):
-        print("\nfidelity bound:  n >= ln((1-f)/(f eps)) / ln(p_hom/p_het)")
+        print("\nfidelity bound:  n >= ln((1-f)/(f c eps)) / ln(p_hom/p_het)")
         for eps in (1e-2, 1e-3, 1e-4):
-            n_min = theory.min_commitment_steps(prm, eps)
+            n_min = model.min_commitment_steps(prm, eps)
             print(f"  eps = {eps:<7g} n_min = {n_min:5.1f}   "
                   f"L_commit >= {prm.k_seed + math.ceil(n_min)}")
 
@@ -71,43 +49,26 @@ def cmd_theory(args) -> None:
         # What a stabilisation ladder would be worth here, taking koff down by
         # a factor 0.7 per triplet as a plausible per-turn stabilisation.
         lam_ladder = 3.0 / math.log(1.0 / 0.7)
-        gain = theory.commit_rate(prm.with_(lam=lam_ladder)) / theory.commit_rate(prm)
+        gain = model.commit_rate(prm.with_(lam=lam_ladder)) / model.commit_rate(prm)
         print(f"\nkoff(L) ladder, lam = {lam_ladder:.2f} nt: commit rate x {gain:.4f} "
               f"({100 * (gain - 1):+.1f} %)")
 
 
-def cmd_run(args) -> None:
-    from homozip import simulate
+def cmd_figures(args) -> None:
+    from homozip import figures
     prm = load_params(args.params)
-    n_cells = args.cells or prm.n_cells
-    print(f"running {n_cells} cells, t_end = {prm.t_end} min, uid {prm.uid()}",
-          flush=True)
 
-    ens = simulate.run_ensemble(prm, n_cells, progress=True)
-    t, times = ens["t"], ens["first_commit"]
-    committed = times[~np.isnan(times)]
-    dist = theory.search_time_distribution(prm, t)
-    ks = float(np.max(np.abs(simulate.empirical_cdf(times, t) - dist["cdf"])))
-    frac = committed.size / times.size
-    se = math.sqrt(max(frac * (1 - frac), 1e-12) / times.size)
+    print("closed forms:")
+    for key, value in model.summarize(prm, exact=False).items():
+        print(f"  {key:<22} {_fmt(value)}")
 
-    outdir = os.path.join(args.output, "run")
-    os.makedirs(outdir, exist_ok=True)
-    path = os.path.join(outdir, f"ensemble_{prm.uid()}.npz")
-    np.savez_compressed(path, **ens, exact_cdf=dist["cdf"], exact_pdf=dist["pdf"])
-
-    print(f"\ncommitted by t_end   SSA {frac:.3f} +/- {se:.3f}   "
-          f"exact {dist['cdf'][-1]:.3f}")
-    if committed.size:
-        conditional = float(np.trapz(t * dist["pdf"], t) / dist["cdf"][-1])
-        print(f"mean of committed    SSA {committed.mean():.1f} min   "
-              f"exact {conditional:.1f} min")
-    print(f"unconditional mean   exact {theory.mean_search_time_exact(prm):.1f} min   "
-          f"steady state {theory.mean_search_time_qss(prm):.1f} min")
-    print(f"KS distance          {ks:.4f}")
-    print(f"free sites           SSA {ens['S_mean'].mean():.2f}   "
-          f"steady state {theory.free_sites(prm):.2f}")
-    print(f"written {path}")
+    paths = figures.figure_model(prm, args.output)
+    if os.path.isfile(args.genome_spectrum) and os.path.isfile(args.background_spectrum):
+        paths += figures.figure_spectrum(args.genome_spectrum,
+                                         args.background_spectrum,
+                                         args.output, prm.l_commit)
+    for path in paths:
+        print(f"figure   {path}")
 
 
 def cmd_spectrum(args) -> None:
@@ -140,62 +101,31 @@ def cmd_spectrum(args) -> None:
     print(f"written {args.output}")
 
 
-def cmd_figure(args) -> None:
-    from homozip import figures
-    prm = load_params(args.params)
-    fig_dir = os.path.join(args.output, "fig")
-
-    print("closed forms:")
-    for key, value in theory.summarize(prm, exact=False).items():
-        print(f"  {key:<22} {_fmt(value)}")
-
-    paths = figures.figure_model(prm, fig_dir, quick=args.quick)
-    if os.path.isfile(args.genome_spectrum) and os.path.isfile(args.background_spectrum):
-        paths += figures.figure_spectrum(args.genome_spectrum,
-                                         args.background_spectrum,
-                                         fig_dir, prm.l_commit)
-    for path in paths:
-        print(f"figure   {path}")
-
-
 # =====================================================================
 # Parser
 # =====================================================================
 
-def _model_command(sub, name: str, func, help: str, output: bool = True):
-    """A subcommand that reads params.yaml and, usually, writes under -o."""
-    p = sub.add_parser(name, help=help)
-    p.add_argument("params", nargs="?", default="params.yaml")
-    if output:
-        p.add_argument("-o", "--output", default="output")
-    p.set_defaults(func=func)
-    return p
-
-
 def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(
         prog="homozip",
-        description="the mismatch-limited zipper, a minimal stochastic model "
-                    "of homology search")
+        description="the mismatch-limited zipper, a minimal exactly solvable "
+                    "model of homology search")
     ap.add_argument("--version", action="version", version=f"homozip {__version__}")
     sub = ap.add_subparsers(dest="command", required=True)
 
-    _model_command(sub, "build", cmd_build, "write the Antimony and SBML model")
-
-    p = _model_command(sub, "theory", cmd_theory, "print the closed-form summary",
-                       output=False)
+    p = sub.add_parser("theory", help="print the closed-form summary")
+    p.add_argument("params", nargs="?", default="params.yaml")
     p.add_argument("--no-exact", action="store_true",
                    help="skip the exact mean search time")
+    p.set_defaults(func=cmd_theory)
 
-    p = _model_command(sub, "run", cmd_run,
-                       "Gillespie ensemble against the exact solution")
-    p.add_argument("-c", "--cells", type=int, default=None)
-
-    p = _model_command(sub, "figure", cmd_figure, "the figures")
-    p.add_argument("--quick", action="store_true", help="small ensembles")
+    p = sub.add_parser("figures", help="one PDF per panel")
+    p.add_argument("params", nargs="?", default="params.yaml")
+    p.add_argument("-o", "--output", default="output/fig")
     p.add_argument("--genome-spectrum", default="resources/spectrum/genome.json")
     p.add_argument("--background-spectrum",
                    default="resources/spectrum/background.json")
+    p.set_defaults(func=cmd_figures)
 
     p = sub.add_parser("spectrum", help="measure the match-length spectrum")
     p.add_argument("--genome", default="resources/S288c-Lys2.fa", help="FASTA")

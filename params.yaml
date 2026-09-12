@@ -3,26 +3,24 @@
 
 # ---- Structure of the search ----------------------------------------
 N: 200                  # nucleation sites on the filament
-f: 0.00157              # share of seeds landing on the donor. Measured on S288c
+f: 0.00157              # share of seeds landing on the donor. Measured on S288c: the fraction
+                        # of the LY filament's exact 8-mer matches that fall on LYS2
+contact: 0.025          # share of the time the donor is within reach of the filament. The
+                        # background is everywhere, the donor is one locus. The one place where
+                        # the nucleus enters; set so that half of the cells commit by about 4 h
 k_seed: 8               # length of the initial exact match, nt
 L_commit: 30            # length at which the joint is committed, nt
 max_mismatches: 0       # mismatches stepped over before blocking. 0 = every mismatch blocks
 
 # ---- Rates, per minute ------------------------------------------------
-kon:   0.006            # a free site catches a seed. Fitted, so kon * N = 1.2 /min
-koff0: 0.7              # a joint falls off the DNA. Fitted
-kext:  300              # the zipper advances by one nucleotide. Fixed, sets the time unit
-lam:   null             # koff(L) = koff0 * exp(-(L - k_seed) / lam), nt. null is a flat koff.
-                        # Set 8.41 to switch the ladder on; it is worth 3.2 %
+kon:   1.0              # a free site catches a seed. About 60 % of the sites are busy at
+                        # steady state: the filament tests many sequences at once
+koff0: 0.7              # a joint falls off the DNA
+kext:  300              # the zipper advances by one nucleotide. Sets the time unit
+lam:   null             # koff(L) = koff0 * exp(-(L - k_seed) / lam), nt. null is a flat koff
 
 # ---- Sequence ---------------------------------------------------------
-delta: 0.0              # divergence of the donor, so p_hom = 1 - delta. This is the
-                        # variable of the experiment. Give p_hom directly instead, not both
+delta: 0.0              # divergence of the donor, so p_hom = 1 - delta. Give p_hom
+                        # directly instead, not both
 p_het: 0.271            # chance the next nucleotide pairs in the background. Measured,
                         # flat over L = 8..14. A profile [p(8), p(9), ...] is accepted too
-
-# ---- Simulation -------------------------------------------------------
-t_end:    480           # minutes
-n_points: 481
-n_cells:  2000
-seed:     1999          # cell i uses seed + i
