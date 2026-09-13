@@ -7,12 +7,13 @@ One PDF per panel, all from the exact solution. Nothing is simulated.
     association.pdf         commitment rate against kon: saturation
     occupancy.pdf           share of busy sites against kon: concomitant joints
     stability.pdf           commitment rate against koff, three loads
+    access.pdf              half-commitment time against donor availability c
     first_passage.pdf       cells with a donor commitment against time
     hazard.pdf              the hazard: one transit and one blocked joint are the memory
     spectrum_survival.pdf   the match-length spectrum behind f
     spectrum_hazard.pdf     the measured p(L) behind p_het
 
-Each panel is about 60 x 52 mm with 7.5 pt text, cropped to its content,
+Each panel is about 60 x 52 mm with 6 pt Carlito text, cropped to its content,
 so that it drops into a multi-panel figure without rescaling.
 """
 
@@ -34,12 +35,14 @@ RAMP = ("#79ade6", "#2a78d6", "#0f3d7a")
 ACCENT, MUTED, GREY = "#eb6834", "#52514e", "#9a9a94"
 PANEL = (60 / 25.4, 52 / 25.4)
 STYLE = {
-    "font.size": 7.5, "axes.titlesize": 8, "axes.labelsize": 7.5,
-    "xtick.labelsize": 6.5, "ytick.labelsize": 6.5, "legend.fontsize": 6.5,
+    "font.size": 6, "axes.titlesize": 6, "axes.labelsize": 6,
+    "xtick.labelsize": 6, "ytick.labelsize": 6, "legend.fontsize": 6,
     "axes.spines.top": False, "axes.spines.right": False,
     "axes.linewidth": 0.6, "xtick.major.width": 0.6, "ytick.major.width": 0.6,
     "lines.linewidth": 1.5, "pdf.fonttype": 42, "font.family": "sans-serif",
-    "font.sans-serif": ["Helvetica", "Arial", "DejaVu Sans"],
+    "font.sans-serif": ["Carlito"], "mathtext.fontset": "custom",
+    "mathtext.rm": "Carlito", "mathtext.it": "Carlito:italic",
+    "mathtext.bf": "Carlito:bold", "mathtext.sf": "Carlito",
 }
 
 
@@ -54,7 +57,7 @@ def _scalar(prm: Params) -> Params:
 
 def _end_label(ax, x, y, text, color, dx=3, dy=0):
     ax.annotate(text, (x, y), xytext=(dx, dy), textcoords="offset points",
-                color=color, fontsize=6.5, va="center")
+                color=color, fontsize=6, va="center")
 
 
 def _note(ax, x, y, text, color=MUTED, **kw):
@@ -105,8 +108,8 @@ def fidelity(ax, prm: Params, lcs=np.arange(10, 61)) -> None:
                 textcoords="offset points", color=MUTED, fontsize=6)
     ax.axvline(prm.l_commit, color=GREY, lw=0.6, ls=":")
     _note(ax, prm.l_commit + 0.7, 1e-24, f"{prm.l_commit} nt\nreference", va="bottom")
-    ax.text(0.05, 0.06, r"$\frac{1-f}{f\,c}\left(\frac{p_{het}}{p_{hom}}\right)^{n}$",
-            transform=ax.transAxes, color=RAMP[1], fontsize=8)
+    ax.text(0.05, 0.06, r"$(1-f)/(fc)\,(p_{het}/p_{hom})^n$",
+            transform=ax.transAxes, color=RAMP[1], fontsize=6)
     ax.set_xlim(lcs[0], lcs[-1] + 2)
     ax.set_ylim(1e-26, 1e4)
     ax.set_yticks([1e0, 1e-6, 1e-12, 1e-18, 1e-24])
@@ -228,10 +231,43 @@ def stability(ax, prm: Params) -> None:
 # Time
 # =====================================================================
 
+def access(ax, prm: Params) -> None:
+    """The spatial layer enters through one number.  The exact half-time
+    follows approximately 1/c once the donor becomes encounter-limited.
+    This is the direct bridge to a model that resolves contacts in time."""
+    contacts = np.logspace(-3, 0, 41)
+    half_times = np.array([
+        model.half_time(prm.with_(contact=float(contact))) / 60.0
+        for contact in contacts
+    ])
+    ax.loglog(contacts, half_times, color=RAMP[1])
+
+    reference_time = model.half_time(prm) / 60.0
+    ax.axvline(prm.contact, color=ACCENT, lw=0.8)
+    ax.plot(prm.contact, reference_time, "o", ms=3.5, color=ACCENT, zorder=5)
+    _note(ax, prm.contact * 1.25, reference_time * 1.25,
+          f"reference  c = {prm.contact:g}\n" +
+          rf"$t_{{1/2}}={reference_time:.1f}$ h",
+          color=ACCENT, va="bottom")
+
+    # A slope guide, anchored away from the data labels.
+    guide_x = np.array([2e-3, 1e-2])
+    guide_y = half_times[-1] / guide_x
+    ax.loglog(guide_x, guide_y, color=GREY, lw=0.7, ls="--")
+    _note(ax, 2.2e-3, guide_y[0] * 0.72, "slope = -1", color=GREY)
+    _note(ax, 0.95, half_times[-1] * 1.3, "donor always\nwithin reach",
+          color=MUTED, ha="right", va="bottom")
+
+    ax.set_xlim(1e-3, 1.05)
+    ax.set_xlabel(r"donor availability $c$")
+    ax.set_ylabel(r"half-commitment time $t_{1/2}$ (h)")
+    ax.set_title("Access sets the clock", loc="left")
+
 def first_passage(ax, prm: Params, t_end: float = 480.0) -> None:
     """Fraction of cells with a donor commitment against time, for three
-    association rates: exponential from t = 0 whatever the rate. Dots,
-    the half time of each curve."""
+    association rates.  The seconds-to-minutes loading transient is invisible
+    on this hour scale, after which the curves are effectively exponential.
+    Dots, the half time of each curve."""
     t = np.linspace(0.0, t_end, 481)
     for mult, c in zip((0.1, 1, 10), RAMP):
         p = prm.with_(kon=prm.kon * mult)
@@ -352,7 +388,8 @@ def figure_model(prm: Params, outdir: str) -> list[str]:
     panels = [("divergence", divergence), ("fidelity", fidelity),
               ("commitment_length", commitment_length), ("association", association),
               ("occupancy", occupancy), ("stability", stability),
-              ("first_passage", first_passage), ("hazard", hazard)]
+              ("access", access), ("first_passage", first_passage),
+              ("hazard", hazard)]
     return [_plot(outdir, name, lambda ax, fn=fn: fn(ax, prm)) for name, fn in panels]
 
 
